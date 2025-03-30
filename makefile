@@ -1,5 +1,6 @@
 # Raspberry Pi
-RPIIP		?= 192.168.1.110
+#RPIIP		?= 192.168.1.19
+RPIIP		?= 192.168.1.145
 RPI_USER	?= pi
 RPI_PASS	?= raspberry
 RPI_DIR		?= /home/pi/Reflexe/bin
@@ -41,11 +42,16 @@ $(bin)/lcd.o: $(lib)/my_lcd.c $(lib)/my_lcd.h
 $(bin)/touch.o: $(lib)/my_touch.c $(lib)/my_touch.h
 	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
 
-
 $(bin)/data.o: $(lib)/data.c $(lib)/data.h
 	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
 
 $(bin)/session.o: $(lib)/session.c $(lib)/session.h
+	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
+
+$(bin)/formes.o: formes.c
+	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
+
+$(bin)/jeu.o: $(lib)/jeu.c $(lib)/jeu.h
 	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
 
 #####################################################
@@ -72,9 +78,6 @@ $(bin)/lcd: $(test)/lcd.c $(bin)/lcd.o
 $(bin)/touch: $(test)/touch.c $(bin)/touch.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-$(bin)/main.o: main.c main.h formes.c $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
-	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
-
 #####################################################
 
 
@@ -82,13 +85,13 @@ $(bin)/main.o: main.c main.h formes.c $(bin)/7_segment.o $(bin)/matrice_btn.o $(
 ####################     main     ####################
 
 # jeu en local
-$(bin)/main: main.c main.h formes.c $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
+$(bin)/main: main.c $(bin)/jeu.o $(bin)/formes.o $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-$(bin)/client: client.c client.h $(bin)/main.o $(bin)/session.o $(bin)/data.o
+$(bin)/client: client.c client.h $(bin)/jeu.o $(bin)/formes.o $(bin)/session.o $(bin)/data.o $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-$(bin)/serveur: serveur.c serveur.h $(bin)/main.o $(bin)/session.o $(bin)/data.o
+$(bin)/serveur: serveur.c serveur.h $(bin)/jeu.o $(bin)/formes.o $(bin)/session.o $(bin)/data.o $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 #####################################################
@@ -126,11 +129,11 @@ install_client: $(bin)/client
 install_serveur: $(bin)/serveur
 	sshpass -p $(RPI_PASS) scp $(bin)/serveur $(RPI_USER)@$(RPIIP):$(RPI_DIR)
 
-isntall_local: install_main
+install_local: install_main
 
 install_remote: install_client install_serveur
 
-install_jeu: install_main install_client install_serveur
+install_jeu: install_local install_remote
 
 install_all: install_test install_jeu
 
