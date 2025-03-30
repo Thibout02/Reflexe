@@ -85,7 +85,7 @@ $(bin)/touch: $(test)/touch.c $(bin)/touch.o
 ####################     main     ####################
 
 # jeu en local
-$(bin)/main: main.c $(bin)/jeu.o $(bin)/formes.o $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
+$(bin)/local: local.c $(bin)/jeu.o $(bin)/formes.o $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 $(bin)/client: client.c client.h $(bin)/jeu.o $(bin)/formes.o $(bin)/session.o $(bin)/data.o $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
@@ -120,7 +120,7 @@ install_touch: $(bin)/touch
 
 install_test: install_7_segment install_matrice_btn install_matrice_led install_ncurses install_lcd install_touch
 
-install_main: $(bin)/main
+install_local: $(bin)/local
 	sshpass -p $(RPI_PASS) scp $(bin)/main $(RPI_USER)@$(RPIIP):$(RPI_DIR)
 
 install_client: $(bin)/client
@@ -128,8 +128,6 @@ install_client: $(bin)/client
 
 install_serveur: $(bin)/serveur
 	sshpass -p $(RPI_PASS) scp $(bin)/serveur $(RPI_USER)@$(RPIIP):$(RPI_DIR)
-
-install_local: install_main
 
 install_remote: install_client install_serveur
 
