@@ -42,12 +42,6 @@ $(bin)/lcd.o: $(lib)/my_lcd.c $(lib)/my_lcd.h
 $(bin)/touch.o: $(lib)/my_touch.c $(lib)/my_touch.h
 	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
 
-$(bin)/data.o: $(lib)/data.c $(lib)/data.h
-	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
-
-$(bin)/session.o: $(lib)/session.c $(lib)/session.h
-	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
-
 $(bin)/formes.o: formes.c
 	$(CC) $(CFLAGS) -c -o $@ $< $(LDFLAGS)
 
@@ -88,10 +82,10 @@ $(bin)/touch: $(test)/touch.c $(bin)/touch.o
 $(bin)/local: local.c $(bin)/jeu.o $(bin)/formes.o $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-$(bin)/client: client.c client.h $(bin)/jeu.o $(bin)/formes.o $(bin)/session.o $(bin)/data.o $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
+$(bin)/client: client.c client.h $(bin)/jeu.o $(bin)/formes.o $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-$(bin)/serveur: serveur.c serveur.h $(bin)/jeu.o $(bin)/formes.o $(bin)/session.o $(bin)/data.o $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
+$(bin)/serveur: serveur.c serveur.h $(bin)/jeu.o $(bin)/formes.o $(bin)/7_segment.o $(bin)/matrice_btn.o $(bin)/matrice_led.o $(bin)/ncurses.o $(bin)/lcd.o $(bin)/touch.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
 #####################################################
@@ -121,13 +115,13 @@ install_touch: $(bin)/touch
 install_test: install_7_segment install_matrice_btn install_matrice_led install_ncurses install_lcd install_touch
 
 install_local: $(bin)/local
-	sshpass -p $(RPI_PASS) scp $(bin)/main $(RPI_USER)@$(RPIIP):$(RPI_DIR)
+	sshpass -p $(RPI_PASS) scp $^ $(RPI_USER)@$(RPIIP):$(RPI_DIR)
 
 install_client: $(bin)/client
-	sshpass -p $(RPI_PASS) scp $(bin)/client $(RPI_USER)@$(RPIIP):$(RPI_DIR)
+	sshpass -p $(RPI_PASS) scp $^ $(RPI_USER)@$(RPIIP):$(RPI_DIR)
 
 install_serveur: $(bin)/serveur
-	sshpass -p $(RPI_PASS) scp $(bin)/serveur $(RPI_USER)@$(RPIIP):$(RPI_DIR)
+	sshpass -p $(RPI_PASS) scp $^ $(RPI_USER)@$(RPIIP):$(RPI_DIR)
 
 install_remote: install_client install_serveur
 
@@ -140,3 +134,4 @@ install_all: install_test install_jeu
 
 clean:
 	rm -f $(bin)/*
+

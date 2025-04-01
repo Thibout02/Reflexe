@@ -11,48 +11,63 @@
 #include <stdlib.h>
 #include <time.h>
 #include <sys/time.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
+// Définition des formes
+extern int formes[16][8];
 
+int envoyer_donnees(int socket, const void *buffer, size_t length) {
+    return send(socket, buffer, length, 0);
+}
+
+int recevoir_donnees(int socket, void *buffer, size_t length) {
+    return recv(socket, buffer, length, 0);
+}
 
 int lancer_jeu(void)
 {
-    // Initialisation de wiringPi
-    if (wiringPiSetup() == -1) {
-        printf("Erreur d'initialisation de wiringPi\n");
-        return 1;
-    }
-
     srand(time(NULL));
 
     int temps_final = 0;
     int position_correcte = 0;
-    
+
     // Initialisation des périphériques
-    initialiser_peripheriques();
+    if (initialiser_peripheriques()) {
+        fprintf(stderr, "Erreur d'initialisation des périphériques\n");
+        return 1;
+    }
 
     // Affichage message d'accueil sur LCD
     lcd_effacer();
     lcd_ecrire(0, 0, "Jeu de Reflexes");
     lcd_ecrire(0, 1, "Preparez-vous...");
     delay(1000);
-    
+
     // Attendre le contact tactile maintenu pendant une seconde
     attendre_contact_tactile();
-    
+
     // Jouer une partie et récupérer le résultat
     int rep = jouer_partie(&temps_final, &position_correcte);
-    
+
     // Afficher le résultat
     afficher_resultat(rep, position_correcte, temps_final);
-    
+
     // Nettoyage des périphériques
     nettoyer_peripheriques();
 
     return 0;
 }
 
-void initialiser_peripheriques()
+int initialiser_peripheriques()
 {
+
+    // Initialisation de wiringPi
+    if (wiringPiSetup() == -1) {
+        printf("Erreur d'initialisation de wiringPi\n");
+        return 1;
+    }
+
     // Initialisation de ncurses et des périphériques
     init_ncurses();
     matrice_btn_init();
@@ -60,10 +75,14 @@ void initialiser_peripheriques()
     segment7_init();
     touch_init();
     lcd_init();
+    return 0;
 }
 
 double attendre_contact_tactile()
 {
+    // clean touch
+    touch_cleanup();
+
     // Message pour demander au joueur de toucher le capteur
     lcd_effacer();
     lcd_ecrire(0, 0, "Maintenez TOUCH");
@@ -87,7 +106,7 @@ double attendre_contact_tactile()
     int barres_a_afficher = 0;
     int etat_touch = 0;
 
-    while (temps_cumule < 1.0) { // 1.0 seconde
+    while (temps_cumule <= 1.0) { // 1.0 seconde
         // Lecture de l'état du capteur
         etat_touch = touch_read();
 
@@ -132,15 +151,15 @@ double attendre_contact_tactile()
 
         delay(10); // Pause courte pour éviter de surcharger le CPU
     }
-    
+
     return temps_cumule;
 }
 
 int jouer_partie(int *temps_final, int *position_correcte)
 {
     // Initialisation de la luminosité de la matrice LED
-    matrice_led_luminosite(3); 
-    
+    matrice_led_luminosite(3);
+
     // Instructions sur LCD
     lcd_effacer();
     lcd_ecrire(0, 0, "Trouvez la forme");
@@ -149,7 +168,7 @@ int jouer_partie(int *temps_final, int *position_correcte)
     // Afficher une forme aléatoire sur la matrice de LED
     int forme = rand() % 16;
     matrice_led_afficher_motif(formes[forme]);
-    
+
     // Récupère la position de la forme dans la grille (1-16)
     *position_correcte = afficher_grille(forme);
 
@@ -160,48 +179,48 @@ int jouer_partie(int *temps_final, int *position_correcte)
     // Démarrage du chronomètre
     struct timeval debut, maintenant;
     gettimeofday(&debut, NULL);
-    
+
     int rep = 0;
     int temps_affiche = 0;
     int temps_precedent = -1;
     double temps_ecoule;
-    
+
     // Boucle du chronomètre qui s'incrémente jusqu'à ce qu'un bouton soit pressé
     while (rep == 0 && temps_affiche < 100) {
         // Vérifier si un bouton a été pressé
         rep = matrice_btn_lire();
-        
+
         // Mettre à jour le chronomètre toutes les 100ms
         gettimeofday(&maintenant, NULL);
         temps_ecoule = (maintenant.tv_sec - debut.tv_sec) +
                        ((maintenant.tv_usec - debut.tv_usec) / 1000000.0);
-        
+
         // Convertir en dixième de seconde
         temps_affiche = (int)(temps_ecoule * 10);
-        
+
         // Mettre à jour l'affichage seulement si le temps a changé
         if (temps_affiche != temps_precedent) {
             segment7_afficher_nombre(temps_affiche);
             temps_precedent = temps_affiche;
         }
-        
+
         // Petite pause pour ne pas surcharger le CPU
         delay(10);
     }
-    
+
     // Calculer le temps final
     gettimeofday(&maintenant, NULL);
     double temps_secondes = (maintenant.tv_sec - debut.tv_sec) +
                            ((maintenant.tv_usec - debut.tv_usec) / 1000000.0);
     *temps_final = (int)(temps_secondes * 10);
-    
+
     return rep; // Retourne la réponse du joueur, pas la position correcte
 }
 
 void afficher_resultat(int rep, int position_correcte, int temps_affiche)
 {
     char lcd_str[16];
-    
+
     // Compare le bouton pressé (1-16) avec la position correcte
     if (rep == position_correcte) {
         // Affichage du résultat sur LCD
@@ -224,7 +243,7 @@ void afficher_resultat(int rep, int position_correcte, int temps_affiche)
         sprintf(lcd_str, "Position: %d", position_correcte);
         lcd_ecrire(0, 1, lcd_str);
     }
-    
+
     refresh_display();
     delay(3000);  // Délai plus long pour lire le résultat
     refresh_display();
@@ -234,18 +253,18 @@ void nettoyer_peripheriques()
 {
     // Nettoyage de la matrice LED
     matrice_led_effacer();
-    
+
     // Nettoyage de ncurses
     cleanup_ncurses();
-    
+
     // Nettoyage de tous les périphériques
     segment7_effacer();
     segment7_cleanup();
-    
+
     // Nettoyage de l'écran LCD
     lcd_effacer();
     lcd_cleanup();
-    
+
     // Nettoyage des GPIO
     touch_cleanup();
     matrice_btn_cleanup();
@@ -310,3 +329,4 @@ void convertir_forme(const int forme[8], char resultat[8][8])
         }
     }
 }
+

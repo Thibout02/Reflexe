@@ -1,5 +1,3 @@
-#include "main.h"
-
 // Définition des formes
 int formes[16][8] = {
     {    // CARRE_GRAND
