@@ -44,14 +44,64 @@ int lancer_jeu(void)
     lcd_ecrire(0, 1, "Preparez-vous...");
     delay(1000);
 
-    // Attendre le contact tactile maintenu pendant une seconde
-    attendre_contact_tactile();
+    while (1) {
+        // Nettoyer et réinitialiser complètement les périphériques entre les parties
+        touch_cleanup();
+        matrice_btn_cleanup();
+        delay(200);
 
-    // Jouer une partie et récupérer le résultat
-    int rep = jouer_partie(&temps_final, &position_correcte);
+        matrice_btn_init();
+        touch_init();
+        delay(100);
 
-    // Afficher le résultat
-    afficher_resultat(rep, position_correcte, temps_final);
+        // Attendre le contact tactile maintenu pendant une seconde
+        attendre_contact_tactile();
+
+        // Désactiver le capteur tactile pendant la partie
+        touch_cleanup();
+        delay(50);
+
+        // Jouer une partie et récupérer le résultat
+        int rep = jouer_partie(&temps_final, &position_correcte);
+
+        // Afficher le résultat
+        afficher_resultat(rep, position_correcte, temps_final);
+
+        // Nettoyer les affichages avant de demander si le joueur veut rejouer
+        lcd_effacer();
+        segment7_effacer();
+        matrice_led_effacer();
+
+        int i, j;
+        for (i = 0; i < 4; i++) {
+            for (j = 0; j < 4; j++) {
+                clear_cell(i, j); // Effacer chaque cellule de la grille
+            }
+        }
+        refresh_display();
+
+        // Réinitialiser la matrice de boutons pour la sélection du menu
+        matrice_btn_cleanup();
+        delay(100);
+        matrice_btn_init();
+        delay(50);
+
+        // Demander au joueur s'il veut rejouer ou quitter
+        lcd_effacer();
+        lcd_ecrire(0, 0, "Rejouer: Btn 1");
+        lcd_ecrire(0, 1, "Quitter: Btn 2");
+
+        int choix = 0;
+        while (choix != 1 && choix != 2) {
+            choix = matrice_btn_lire();
+            delay(100); // Pause courte pour éviter de surcharger le CPU
+        }
+
+        if (choix == 2) {
+            break; // Quitter la boucle et terminer le jeu
+        }
+
+    }
 
     // Nettoyage des périphériques
     nettoyer_peripheriques();
@@ -61,27 +111,35 @@ int lancer_jeu(void)
 
 int initialiser_peripheriques()
 {
-
-    // Initialisation de wiringPi
+    // Initialisation de wiringPi avec vérification plus robuste
     if (wiringPiSetup() == -1) {
-        printf("Erreur d'initialisation de wiringPi\n");
+        fprintf(stderr, "Erreur critique d'initialisation de wiringPi!\n");
         return 1;
     }
 
-    // Initialisation de ncurses et des périphériques
+    // Initialisation des autres périphériques avec délais pour stabilisation
     init_ncurses();
+    delay(50);
+
     matrice_btn_init();
+    delay(50);
+
     matrice_led_init();
+    delay(50);
+
     segment7_init();
-    touch_init();
+    delay(50);
+
     lcd_init();
+    delay(50);
+
     return 0;
 }
 
 double attendre_contact_tactile()
 {
-    // clean touch
-    touch_cleanup();
+    // Initialisation du capteur tactile
+    reinitialiser_capteur_touch();
 
     // Message pour demander au joueur de toucher le capteur
     lcd_effacer();
@@ -95,8 +153,8 @@ double attendre_contact_tactile()
         lcd_caractere('.');
     }
 
-    // Petite pause pour stabiliser l'affichage
-    delay(500);
+    // Pause pour stabilisation
+    delay(100);
 
     // Variables pour mesurer précisément le temps de contact
     struct timeval debut_contact, temps_actuel;
@@ -106,12 +164,10 @@ double attendre_contact_tactile()
     int barres_a_afficher = 0;
     int etat_touch = 0;
 
-    while (temps_cumule <= 1.0) { // 1.0 seconde
+    // Attendre jusqu'à ce que l'utilisateur maintienne le contact pendant 1 seconde
+    while (temps_cumule < 1.0) {
         // Lecture de l'état du capteur
         etat_touch = touch_read();
-
-        // Obtenir le temps actuel
-        gettimeofday(&temps_actuel, NULL);
 
         // Si le capteur est touché
         if (etat_touch) {
@@ -119,18 +175,14 @@ double attendre_contact_tactile()
             if (!contact_actif) {
                 contact_actif = 1;
                 gettimeofday(&debut_contact, NULL);
-                // Ajuster debut_contact pour tenir compte du temps déjà cumulé
-                debut_contact.tv_sec -= (int)temps_cumule;
-                debut_contact.tv_usec -= (temps_cumule - (int)temps_cumule) * 1000000;
-                if (debut_contact.tv_usec < 0) {
-                    debut_contact.tv_sec--;
-                    debut_contact.tv_usec += 1000000;
-                }
             }
+
+            // Obtenir le temps actuel
+            gettimeofday(&temps_actuel, NULL);
 
             // Calculer le temps écoulé depuis le début du contact
             temps_ecoule = (temps_actuel.tv_sec - debut_contact.tv_sec) +
-                           ((temps_actuel.tv_usec - debut_contact.tv_usec) / 1000000.0);
+                          ((temps_actuel.tv_usec - debut_contact.tv_usec) / 1000000.0);
 
             // Mettre à jour le temps cumulé
             temps_cumule = temps_ecoule;
@@ -138,8 +190,7 @@ double attendre_contact_tactile()
         // Si le capteur n'est pas touché mais était actif avant
         else if (contact_actif) {
             contact_actif = 0;
-            // Remise à zéro du temps cumulé
-            temps_cumule = 0;
+            temps_cumule = 0;  // Remettre à zéro le compteur
         }
 
         // Mettre à jour la barre de progression
@@ -175,6 +226,12 @@ int jouer_partie(int *temps_final, int *position_correcte)
     // Effacer l'afficheur 7 segments et initialiser à 0
     segment7_effacer();
     segment7_afficher_nombre(0);
+
+    // S'assurer que les états des broches sont stables
+    matrice_btn_cleanup();
+    delay(100);
+    matrice_btn_init();
+    delay(50);
 
     // Démarrage du chronomètre
     struct timeval debut, maintenant;
@@ -319,6 +376,37 @@ int afficher_grille(int forme)
     return position_forme;  // Retourne la position de la forme (1-16) ou -1 si non trouvée
 }
 
+// Nouvelle fonction pour afficher la grille avec un ordre prédéfini des formes
+int afficher_grille_predefinie(int forme, const int *indices)
+{
+    // Dessine la grille
+    draw_grid();
+
+    char forme_convertie[8][8];
+    int i, j, k;
+    int position_forme = -1;  // Pour stocker la position de la forme recherchée
+
+    // Affichage des formes dans la grille selon l'ordre fourni
+    int indice_forme;
+    k = 0;
+    for (i = 0; i < 4; i++) {
+        for (j = 0; j < 4; j++) {  // Parcours de gauche à droite (0 à 3)
+            indice_forme = indices[k++];
+            convertir_forme(formes[indice_forme], forme_convertie);
+            display_pattern(i, j, forme_convertie);
+
+            // Si c'est la forme recherchée, enregistrer sa position
+            // Calculer la position selon la convention des boutons: ligne*4 + colonne + 1
+            if (indice_forme == forme) {
+                position_forme = i * 4 + j + 1;  // +1 car les boutons sont numérotés de 1 à 16
+            }
+        }
+    }
+
+    refresh_display();
+    return position_forme;  // Retourne la position de la forme (1-16) ou -1 si non trouvée
+}
+
 void convertir_forme(const int forme[8], char resultat[8][8])
 {
     int i, j;
@@ -328,5 +416,23 @@ void convertir_forme(const int forme[8], char resultat[8][8])
             resultat[i][j] = (forme[i] & (1 << (7 - j))) ? 'x' : ' ';
         }
     }
+}
+
+// Fonction à appeler avant chaque nouvelle manche
+void reinitialiser_capteur_touch() {
+    // Libérer d'abord les ressources
+    touch_cleanup();
+
+    // Attendre que les tensions se stabilisent
+    delay(200);
+
+    // Réinitialiser et configurer le capteur touch
+    touch_init(); // Assurez-vous que cette fonction existe dans votre code
+
+    // Lire et ignorer une première valeur pour "vider" tout état résiduel
+    touch_read(); // Assurez-vous que cette fonction existe dans votre code
+
+    // Autre délai pour s'assurer que tout est stable
+    delay(100);
 }
 

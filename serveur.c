@@ -8,7 +8,7 @@
 #include <stdbool.h>
 
 #define PORT 12345
-#define MAX_CLIENTS 4
+#define MAX_CLIENTS 10
 #define DELAI_CONNEXION 5 // Délai d'attente en secondes pour d'autres connexions
 
 int clients[MAX_CLIENTS];
@@ -197,13 +197,34 @@ void envoyer_grille_et_forme() {
     srand(time(NULL));
     int forme = rand() % 16;
     
-    printf("Envoi de la forme %d à tous les clients...\n", forme);
+    // Créer un tableau d'indices (0-15) qui sera le même pour tous les clients
+    int indices[16];
+    int i, j, temp;
     
-    // Envoyer la même forme à tous les clients
-    int i;
+    // Initialisation du tableau d'indices
+    for (i = 0; i < 16; i++) {
+        indices[i] = i;
+    }
+    
+    // Mélange aléatoire des indices (Fisher-Yates shuffle)
+    for (i = 15; i > 0; i--) {
+        j = rand() % (i + 1);
+        // Échange des indices i et j
+        temp = indices[i];
+        indices[i] = indices[j];
+        indices[j] = temp;
+    }
+    
+    printf("Envoi de la forme %d et de l'ordre des indices à tous les clients...\n", forme);
+    
+    // Envoyer la même forme et le même ordre d'indices à tous les clients
     for (i = 0; i < nb_clients; i++) {
         if (clients_actifs[i]) {
+            // Envoyer d'abord la forme à chercher
             envoyer_donnees(clients[i], &forme, sizeof(int));
+            
+            // Puis envoyer l'ordre des indices (la disposition des formes sur la grille)
+            envoyer_donnees(clients[i], indices, sizeof(indices));
         }
     }
 }
@@ -418,4 +439,3 @@ int main() {
     
     return EXIT_SUCCESS;
 }
-

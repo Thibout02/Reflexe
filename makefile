@@ -17,7 +17,7 @@ test	= test
 PATH_CC	= compileur/bin
 CC		= $(PATH_CC)/arm-linux-gnueabihf-gcc
 CFLAGS	= -Wall -Wextra -I$(wiringPi)/include/ -I$(ncurses)/include/ -I$(lib)/
-LDFLAGS	= -L$(wiringPi)/lib -lwiringPi -L$(ncurses)/lib -lncurses -lpthread
+LDFLAGS	= -L$(wiringPi)/lib -L$(ncurses)/lib -lwiringPi -lncurses -lpthread
 
 
 all: install

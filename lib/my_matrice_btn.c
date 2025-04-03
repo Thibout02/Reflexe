@@ -172,7 +172,7 @@ int matrice_btn_attendre_relache(void)
  */
 void matrice_btn_cleanup(void)
 {
-    // Réinitialise toutes les lignes à HIGH (état inactif)
+    // Réinitialise toutes les lignes à HIGH
     digitalWrite(ROW1, HIGH);
     digitalWrite(ROW2, HIGH);
     digitalWrite(ROW3, HIGH);
@@ -184,9 +184,24 @@ void matrice_btn_cleanup(void)
     pinMode(ROW3, INPUT);
     pinMode(ROW4, INPUT);
     
+    // Configure aussi les colonnes en INPUT
+    pinMode(COL1, INPUT);
+    pinMode(COL2, INPUT);
+    pinMode(COL3, INPUT);
+    pinMode(COL4, INPUT);
+
     // Désactive les résistances de tirage
     pullUpDnControl(COL1, PUD_OFF);
     pullUpDnControl(COL2, PUD_OFF);
     pullUpDnControl(COL3, PUD_OFF);
     pullUpDnControl(COL4, PUD_OFF);
+
+    // Désactive aussi les résistances de tirage pour les lignes
+    pullUpDnControl(ROW1, PUD_OFF);
+    pullUpDnControl(ROW2, PUD_OFF);
+    pullUpDnControl(ROW3, PUD_OFF);
+    pullUpDnControl(ROW4, PUD_OFF);
+
+    // Petit délai pour laisser les niveaux électriques se stabiliser
+    delay(10);
 }

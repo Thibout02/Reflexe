@@ -9,7 +9,11 @@ int jouer_partie(int *temps_final, int *position_correcte);
 void afficher_resultat(int rep, int position_correcte, int temps_final);
 void nettoyer_peripheriques();
 int afficher_grille(int forme);
+int afficher_grille_predefinie(int forme, const int *indices);
 void convertir_forme(const int forme[8], char resultat[8][8]);
+
+// Fonction à appeler avant chaque nouvelle manche
+void reinitialiser_capteur_touch();
 
 // Fonctions pour la communication réseau
 int envoyer_donnees(int socket, const void *buffer, size_t length);
