@@ -15,18 +15,40 @@
 #include <stdbool.h>
 #include <sys/time.h>    // Ajout de cet en-tête pour la fonction gettimeofday
 
-#define SERVER_IP "192.168.1.19"
-#define PORT 12345
+#define DEFAULT_SERVER_IP "127.0.0.1"
+#define DEFAULT_PORT 12345
 
 extern int formes[16][8];
 
-int main() {
+int main(int argc, char *argv[]) {
+    // Traitement des arguments de la ligne de commande
+    const char *server_ip = DEFAULT_SERVER_IP;
+    int port = DEFAULT_PORT;
+
+    // Vérifier si l'adresse IP a été fournie
+    if (argc > 1) {
+        server_ip = argv[1];
+    }
+
+    // Vérifier si le port a été fourni
+    if (argc > 2) {
+        port = atoi(argv[2]);
+        if (port <= 0 || port > 65535) {
+            fprintf(stderr, "Port invalide, utilisation du port par défaut: %d\n", DEFAULT_PORT);
+            port = DEFAULT_PORT;
+        }
+    }
+
+    printf("Connexion au serveur %s sur le port %d\n", server_ip, port);
+
     // Initialisation des périphériques
     if (initialiser_peripheriques()) {
         fprintf(stderr, "Erreur d'initialisation des périphériques\n");
         return EXIT_FAILURE;
     }
-    
+
+    matrice_led_luminosite(3);
+
     // Création du socket client
     int client_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (client_socket < 0) {
@@ -39,8 +61,8 @@ int main() {
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = inet_addr(SERVER_IP);
-    server_addr.sin_port = htons(PORT);
+    server_addr.sin_addr.s_addr = inet_addr(server_ip);
+    server_addr.sin_port = htons(port);
     
     // Connexion au serveur
     lcd_effacer();
@@ -168,18 +190,29 @@ int main() {
         
         // Vérifier si la réponse est correcte
         bool reponse_correcte = (rep == position_correcte);
-        
+
+        // effacer l'afficheur 7 segments, la matrice de led et ncurses
+        segment7_effacer();
+        matrice_led_effacer();
+        int i, j;
+        for (i = 0; i < 4; i++) {
+            for (j = 0; j < 4; j++) {
+                clear_cell(i, j); // Effacer chaque cellule de la grille
+            }
+        }
+        refresh_display();
+
         // Afficher le résultat local
         char message[16];
-        if (!reponse_correcte) {
-            lcd_effacer();
-            lcd_ecrire(0, 0, "Mauvaise reponse!");
-            sprintf(message, "Position: %d", position_correcte);
-            lcd_ecrire(0, 1, message);
-        } else if (temps_final > 99) {
+        if (temps_final > 99) {
             lcd_effacer();
             lcd_ecrire(0, 0, "Trop lent!");
             sprintf(message, "Temps: %d.%ds", temps_final/10, temps_final%10);
+            lcd_ecrire(0, 1, message);
+        } else if (!reponse_correcte) {
+            lcd_effacer();
+            lcd_ecrire(0, 0, "Mauvaise reponse!");
+            sprintf(message, "Position: %d", position_correcte);
             lcd_ecrire(0, 1, message);
         } else {
             lcd_effacer();
@@ -200,10 +233,7 @@ int main() {
         recevoir_donnees(client_socket, &meilleur_temps, sizeof(int));
         recevoir_donnees(client_socket, &pire_temps, sizeof(int));
 
-        // Nettoyer l'affichage
-        matrice_led_effacer();
-        cleanup_ncurses();
-        
+
         // Afficher les résultats comparatifs
         delay(2000); // Attendre 2 secondes pour que le joueur puisse voir son résultat
         lcd_effacer();

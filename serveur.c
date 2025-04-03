@@ -7,7 +7,7 @@
 #include <time.h>
 #include <stdbool.h>
 
-#define PORT 12345
+#define DEFAULT_PORT 12345
 #define MAX_CLIENTS 10
 #define DELAI_CONNEXION 5 // Délai d'attente en secondes pour d'autres connexions
 
@@ -200,12 +200,12 @@ void envoyer_grille_et_forme() {
     // Créer un tableau d'indices (0-15) qui sera le même pour tous les clients
     int indices[16];
     int i, j, temp;
-    
+
     // Initialisation du tableau d'indices
     for (i = 0; i < 16; i++) {
         indices[i] = i;
     }
-    
+
     // Mélange aléatoire des indices (Fisher-Yates shuffle)
     for (i = 15; i > 0; i--) {
         j = rand() % (i + 1);
@@ -214,15 +214,15 @@ void envoyer_grille_et_forme() {
         indices[i] = indices[j];
         indices[j] = temp;
     }
-    
+
     printf("Envoi de la forme %d et de l'ordre des indices à tous les clients...\n", forme);
-    
+
     // Envoyer la même forme et le même ordre d'indices à tous les clients
     for (i = 0; i < nb_clients; i++) {
         if (clients_actifs[i]) {
             // Envoyer d'abord la forme à chercher
             envoyer_donnees(clients[i], &forme, sizeof(int));
-            
+
             // Puis envoyer l'ordre des indices (la disposition des formes sur la grille)
             envoyer_donnees(clients[i], indices, sizeof(indices));
         }
@@ -231,20 +231,20 @@ void envoyer_grille_et_forme() {
 
 void recevoir_temps(int *temps, bool *reponses_correctes) {
     printf("Réception des réponses et temps des clients...\n");
-    
-    // Initialiser tous les temps à -1 (pour identifier les clients inactifs)
+
+    // Initialiser tous les temps à la valeur maximale (considérés comme lents)
     int i;
     for (i = 0; i < nb_clients; i++) {
-        temps[i] = -1;
+        temps[i] = 100; // 10 secondes (temps maximum)
         reponses_correctes[i] = false;
     }
-    
+
     // Recevoir d'abord si la réponse est correcte, puis le temps de tous les clients actifs
     for (i = 0; i < nb_clients; i++) {
         if (clients_actifs[i]) {
             int est_correct = 0;
             int res = recevoir_donnees(clients[i], &est_correct, sizeof(int));
-            
+
             if (res <= 0) {
                 // Le client s'est déconnecté
                 printf("Client %d déconnecté pendant la réception des résultats.\n", i+1);
@@ -252,21 +252,22 @@ void recevoir_temps(int *temps, bool *reponses_correctes) {
                 close(clients[i]);
                 continue;
             }
-            
+
             reponses_correctes[i] = (est_correct == 1);
-            
+
             res = recevoir_donnees(clients[i], &temps[i], sizeof(int));
             if (res <= 0) {
                 // Le client s'est déconnecté
                 printf("Client %d déconnecté pendant la réception des temps.\n", i+1);
                 clients_actifs[i] = false;
                 close(clients[i]);
-                temps[i] = -1;
+                temps[i] = 100; // Considéré comme lent
                 reponses_correctes[i] = false;
             } else {
-                printf("Client %d: réponse %s, temps = %d.%d secondes\n", 
-                       i+1, 
-                       reponses_correctes[i] ? "correcte" : "incorrecte", 
+                // Pour les réponses incorrectes, on garde le temps mais on l'indique
+                printf("Client %d: réponse %s, temps = %d.%d secondes\n",
+                       i+1,
+                       reponses_correctes[i] ? "correcte" : "incorrecte",
                        temps[i]/10, temps[i]%10);
             }
         }
@@ -274,39 +275,39 @@ void recevoir_temps(int *temps, bool *reponses_correctes) {
 }
 
 void envoyer_resultats(int *temps, bool *reponses_correctes) {
-    // Calculer le meilleur et le pire temps parmi les clients actifs
-    // mais seulement pour les réponses correctes
-    int meilleur_temps = -1;
-    int pire_temps = -1;
-    
-    // Trouver le premier temps valide et correct pour initialiser
+    // Calculer le meilleur et le pire temps parmi tous les clients actifs
+    int meilleur_temps = 100; // Initialiser au maximum (10 secondes)
+    int pire_temps = 0;       // Initialiser au minimum
+
     int i;
+    int clients_actifs_total = 0;
+
+    // Trouver le meilleur temps (réponses correctes uniquement)
+    // et le pire temps (toutes réponses confondues)
     for (i = 0; i < nb_clients; i++) {
-        if (temps[i] >= 0 && reponses_correctes[i]) {
-            meilleur_temps = temps[i];
-            pire_temps = temps[i];
-            break;
-        }
-    }
-    
-    // Si aucun temps valide et correct n'a été trouvé
-    if (meilleur_temps == -1) {
-        printf("Aucune réponse correcte, utilisation de valeurs par défaut.\n");
-        meilleur_temps = 999; // 99.9 secondes (valeur max)
-        pire_temps = 999;
-    } else {
-        // Trouver le meilleur et le pire temps parmi les réponses correctes
-        for (i = 0; i < nb_clients; i++) {
-            if (temps[i] >= 0 && reponses_correctes[i]) {
-                if (temps[i] < meilleur_temps) meilleur_temps = temps[i];
-                if (temps[i] > pire_temps) pire_temps = temps[i];
+        if (clients_actifs[i]) {
+            clients_actifs_total++;
+
+            // Pour le meilleur temps, considérer uniquement les réponses correctes
+            if (reponses_correctes[i] && temps[i] < meilleur_temps) {
+                meilleur_temps = temps[i];
+            }
+
+            // Pour le pire temps, prendre le plus grand (même pour les réponses incorrectes)
+            if (temps[i] > pire_temps) {
+                pire_temps = temps[i];
             }
         }
     }
-    
+
+    // Si aucun client n'a donné de réponse correcte
+    if (meilleur_temps == 100 && clients_actifs_total > 0) {
+        printf("Aucune réponse correcte.\n");
+    }
+
     printf("Meilleur temps (réponses correctes): %d.%d secondes\n", meilleur_temps/10, meilleur_temps%10);
-    printf("Pire temps (réponses correctes): %d.%d secondes\n", pire_temps/10, pire_temps%10);
-    
+    printf("Pire temps (toutes réponses): %d.%d secondes\n", pire_temps/10, pire_temps%10);
+
     // Envoyer les résultats à tous les clients actifs
     for (i = 0; i < nb_clients; i++) {
         if (clients_actifs[i]) {
@@ -318,11 +319,11 @@ void envoyer_resultats(int *temps, bool *reponses_correctes) {
 
 bool recevoir_choix_rejouer() {
     printf("Attente des choix des joueurs pour rejouer...\n");
-    
+
     char choix[MAX_CLIENTS];
     int rejouer_count = 0;
     int actifs_count = 0;
-    
+
     // Compter les clients actifs
     int i;
     for (i = 0; i < nb_clients; i++) {
@@ -330,11 +331,11 @@ bool recevoir_choix_rejouer() {
             actifs_count++;
         }
     }
-    
+
     if (actifs_count == 0) {
         return false; // Plus de clients actifs
     }
-    
+
     // Recevoir les choix de tous les clients actifs
     for (i = 0; i < nb_clients; i++) {
         if (clients_actifs[i]) {
@@ -354,48 +355,61 @@ bool recevoir_choix_rejouer() {
             }
         }
     }
-    
+
     // Si au moins un client veut rejouer
     return rejouer_count > 0;
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    // Traitement des arguments de la ligne de commande
+    int port = DEFAULT_PORT;
+    // Vérifier si le port a été fourni
+    if (argc > 1) {
+        port = atoi(argv[1]);
+        if (port <= 0 || port > 65535) {
+            fprintf(stderr, "Port invalide, utilisation du port par défaut: %d\n", DEFAULT_PORT);
+            port = DEFAULT_PORT;
+        }
+    }
+
+    printf("Démarrage du serveur sur le port %d\n", port);
+
     // Initialisation du socket serveur
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket < 0) {
         perror("Erreur lors de la création du socket");
         return EXIT_FAILURE;
     }
-    
+
     // Configurer l'option de réutilisation d'adresse
     int option = 1;
     setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
-    
+
     // Configuration de l'adresse du serveur
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(PORT);
-    
+    server_addr.sin_port = htons(port);
+
     // Bind et listen
     if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Erreur lors du bind");
         close(server_socket);
         return EXIT_FAILURE;
     }
-    
+
     if (listen(server_socket, MAX_CLIENTS) < 0) {
         perror("Erreur lors du listen");
         close(server_socket);
         return EXIT_FAILURE;
     }
-    
-    printf("Serveur démarré sur le port %d\n", PORT);
-    
+
+    printf("Serveur démarré sur le port %d\n", port);
+
     // Attendre les clients
     attendre_clients(server_socket);
-    
+
     // Boucle principale du jeu
     bool continuer = true;
     while (continuer) {
@@ -404,28 +418,28 @@ int main() {
             printf("Plus de clients actifs, fin du jeu.\n");
             break;
         }
-        
+
         // Envoyer la grille et la forme à tous les clients
         envoyer_grille_et_forme();
-        
+
         // Recevoir les réponses et temps des clients
         int temps[MAX_CLIENTS];
         bool reponses_correctes[MAX_CLIENTS];
         recevoir_temps(temps, reponses_correctes);
-        
+
         // Envoyer les résultats aux clients (meilleur/pire temps parmi les réponses correctes)
         envoyer_resultats(temps, reponses_correctes);
-        
+
         // Demander aux clients s'ils veulent rejouer
         continuer = recevoir_choix_rejouer();
-        
+
         // Si plus aucun client ne veut jouer, on quitte
         if (!continuer) {
             printf("Aucun client ne veut rejouer, fin du jeu.\n");
             break;
         }
     }
-    
+
     // Fermer tous les sockets
     int i;
     for (i = 0; i < nb_clients; i++) {
@@ -433,9 +447,9 @@ int main() {
             close(clients[i]);
         }
     }
-    
+
     close(server_socket);
     printf("Serveur arrêté.\n");
-    
+
     return EXIT_SUCCESS;
 }

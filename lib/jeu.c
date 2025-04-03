@@ -278,8 +278,16 @@ void afficher_resultat(int rep, int position_correcte, int temps_affiche)
 {
     char lcd_str[16];
 
-    // Compare le bouton pressé (1-16) avec la position correcte
-    if (rep == position_correcte) {
+    // Vérifier d'abord si le temps est écoulé (priorité la plus haute)
+    if (temps_affiche >= 100) {
+        // Affichage du résultat sur LCD
+        lcd_effacer();
+        lcd_ecrire(0, 0, "Trop lent!");
+        sprintf(lcd_str, "Temps: %d.%d s", temps_affiche / 10, temps_affiche % 10);
+        lcd_ecrire(0, 1, lcd_str);
+    }
+    // Ensuite vérifier si la réponse est correcte
+    else if (rep == position_correcte) {
         // Affichage du résultat sur LCD
         lcd_effacer();
         lcd_ecrire(0, 0, "Bravo! Correct!");
@@ -287,13 +295,9 @@ void afficher_resultat(int rep, int position_correcte, int temps_affiche)
         // Formater le temps pour l'affichage LCD
         sprintf(lcd_str, "Temps: %d.%d s", temps_affiche / 10, temps_affiche % 10);
         lcd_ecrire(0, 1, lcd_str);
-    } else if (temps_affiche > 99) {
-        // Affichage du résultat sur LCD
-        lcd_effacer();
-        lcd_ecrire(0, 0, "Trop lent!");
-        sprintf(lcd_str, "Temps: %d.%d s", temps_affiche / 10, temps_affiche % 10);
-        lcd_ecrire(0, 1, lcd_str);
-    } else {
+    }
+    // Sinon c'est une erreur
+    else {
         // Affichage du résultat sur LCD
         lcd_effacer();
         lcd_ecrire(0, 0, "Erreur!");
